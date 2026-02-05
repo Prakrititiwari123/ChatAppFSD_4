@@ -1,169 +1,137 @@
-import User from '../models/User.js';
-import jwt from 'jsonwebtoken';
+import User from "../models/userModel.js";
+import bcrypt from "bcrypt";
 
-// Generate JWT Token
-const generateToken = (userId) => {
-    return jwt.sign({ userId }, process.env.JWT_SECRET, {
-        expiresIn: '7d'
+// ================= REGISTER =================
+export const UserRegister = async (req, res, next) => {
+  try {
+    const { fullName, email, mobileNumber, password } = req.body;
+
+    if (!fullName || !email || !mobileNumber || !password) {
+      const error = new Error("All fields required");
+      error.statusCode = 400;
+      return next(error);
+    }
+
+    // check if user already exists
+    const existingUser = await User.findOne({ email });
+    if (existingUser) {
+      const error = new Error("Email already exists");
+      error.statusCode = 400;
+      return next(error);
+    }
+
+    // hash password
+    const salt = await bcrypt.genSalt(10);
+    const hashedPassword = await bcrypt.hash(password, salt);
+
+    await User.create({
+      fullName,
+      email,
+      mobileNumber,
+      password: hashedPassword,
+      userType: "regular",
     });
+
+    res.status(201).json({ message: "Registration successful" });
+  } catch (error) {
+    next(error);
+  }
 };
 
-// Register Controller
-export const register = async (req, res) => {
-    try {
-        const { name, email, password } = req.body;
+// ================= LOGIN =================
+export const UserLogin = async (req, res, next) => {
+  try {
+    const { email, password } = req.body;
 
-        // Validation
-        if (!name || !email || !password) {
-            return res.status(400).json({
-                success: false,
-                message: 'All fields are required'
-            });
-        }
-
-        // Check if user exists
-        const existingUser = await User.findOne({ email });
-        if (existingUser) {
-            return res.status(400).json({
-                success: false,
-                message: 'User already exists with this email'
-            });
-        }
-
-        // Create new user
-        const user = await User.create({
-            name,
-            email,
-            password
-        });
-
-        // Generate token
-        const token = generateToken(user._id);
-
-        // Remove password from response
-        const userResponse = user.toJSON();
-
-        res.status(201).json({
-            success: true,
-            message: 'Registration successful',
-            token,
-            user: userResponse
-        });
-
-    } catch (error) {
-        console.error('Register error:', error);
-        res.status(500).json({
-            success: false,
-            message: 'Server error',
-            error: error.message
-        });
+    if (!email || !password) {
+      const error = new Error("All fields required");
+      error.statusCode = 400;
+      return next(error);
     }
+
+    const existingUser = await User.findOne({ email });
+    if (!existingUser) {
+      const error = new Error("Email not registered");
+      error.statusCode = 400;
+      return next(error);
+    }
+
+    const isGoogleUser = existingUser.userType === "google";
+    if (isGoogleUser) {
+      const error = new Error("Please log in with Google");
+      error.statusCode = 400;
+      return next(error);
+    }
+
+    const isPasswordMatch = await bcrypt.compare(
+      password,
+      existingUser.password,
+    );
+
+    if (!isPasswordMatch) {
+      const error = new Error("Password did not match");
+      error.statusCode = 400;
+      return next(error);
+    }
+
+    res.status(200).json({
+      message: "Login successful",
+      data: existingUser,
+    });
+  } catch (error) {
+    next(error);
+  }
 };
 
-// Login Controller
-export const login = async (req, res) => {
-    try {
-        const { email, password } = req.body;
+export const GoogleUserLogin = async (req, res, next) => {
+  try {
+    const { name, email, id, imageUrl } = req.body;
 
-        // Validation
-        if (!email || !password) {
-            return res.status(400).json({
-                success: false,
-                message: 'Email and password are required'
-            });
-        }
-
-        // Find user
-        const user = await User.findOne({ email });
-        if (!user) {
-            return res.status(401).json({
-                success: false,
-                message: 'Invalid email or password'
-            });
-        }
-
-        // Check password
-        const isPasswordValid = await user.comparePassword(password);
-        if (!isPasswordValid) {
-            return res.status(401).json({
-                success: false,
-                message: 'Invalid email or password'
-            });
-        }
-
-        // Update online status
-        user.isOnline = true;
-        user.lastSeen = new Date();
-        await user.save();
-
-        // Generate token
-        const token = generateToken(user._id);
-
-        // Remove password from response
-        const userResponse = user.toJSON();
-
-        res.json({
-            success: true,
-            message: 'Login successful',
-            token,
-            user: userResponse
-        });
-
-    } catch (error) {
-        console.error('Login error:', error);
-        res.status(500).json({
-            success: false,
-            message: 'Server error',
-            error: error.message
-        });
+    if (!imageUrl) {
+      //use Defualt Photo Code here
+      //using placehold.co
     }
-};
 
-// Logout Controller
-export const logout = async (req, res) => {
-    try {
-        const { userId } = req.body;
-        
-        if (userId) {
-            await User.findByIdAndUpdate(userId, {
-                isOnline: false,
-                lastSeen: new Date()
-            });
+    let existingUser = await User.findOne({ email });
+    const salt = await bcrypt.genSalt(10);
+
+    if (existingUser && existingUser.userType) {
+      if (existingUser.userType === "regular") {
+        console.log("pink");
+        existingUser.userType = "hybrid";
+        existingUser.googleId = bcrypt.hash(id, salt);
+        await existingUser.save();
+      } else {
+        console.log("green");
+        const isVerified = await bcrypt.compare(id, existingUser.googleId);
+        if (!isVerified) {
+          const error = new Error("User Not Verified");
+          error.statusCode = 400;
+          return next(error);
         }
-        
-        res.json({
-            success: true,
-            message: 'Logged out successfully'
-        });
-    } catch (error) {
-        res.status(500).json({
-            success: false,
-            message: 'Server error',
-            error: error.message
-        });
-    }
-};
+      }
+    } else {
+      console.log("orange");
+      const hashGoogleID = await bcrypt.hash(id, salt);
 
-// Get User Profile
-export const getProfile = async (req, res) => {
-    try {
-        const user = await User.findById(req.userId).select('-password');
-        
-        if (!user) {
-            return res.status(404).json({
-                success: false,
-                message: 'User not found'
-            });
-        }
+      console.log(hashGoogleID);
+      
 
-        res.json({
-            success: true,
-            user
-        });
-    } catch (error) {
-        res.status(500).json({
-            success: false,
-            message: 'Server error'
-        });
+      const newUser = await User.create({
+        fullName: name,
+        email,
+        googleId: hashGoogleID,
+        userType: "google",
+      });
+      existingUser = newUser;
     }
+
+    //genrate login token if requred
+    res.status(200).json({
+      message: "Login successful",
+      data: existingUser,
+    });
+  } catch (error) {
+    next(error);
+  }
 };

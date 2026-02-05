@@ -1,120 +1,182 @@
-import React, { useState } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
-import Navbar from '../components/Navbar.jsx';
-import axios from 'axios';
+import React, { useState } from "react";
+import toast from "react-hot-toast";
+import api from "../config/api";
+import { useNavigate } from "react-router-dom";
+import { useGoogleAuth } from "../config/GoogleAuth";
+import { FcGoogle } from "react-icons/fc";
 
 const Login = () => {
-    const navigate = useNavigate();
-    const [formData, setFormData] = useState({
-        email: '',
-        password: ''
-    });
-    const [loading, setLoading] = useState(false);
-    const [error, setError] = useState('');
+  const navigate = useNavigate();
 
-    const handleChange = (e) => {
-        setFormData({
-            ...formData,
-            [e.target.name]: e.target.value
-        });
-    };
+  const { isLoading, error, isInitialized, signInWithGoogle } = useGoogleAuth();
 
-    const handleSubmit = async (e) => {
-        e.preventDefault();
-        setLoading(true);
-        setError('');
+  const handleGoogleSuccess = async (userData) => {
+    console.log("Google Login Data", userData);
+    setLoading(true);
+    try {
+      const res = await api.post("/auth/googleLogin", userData);
 
-        try {
-            const response = await axios.post('http://localhost:4500/api/auth/login', formData);
-            
-            if (response.data.success) {
-                localStorage.setItem('token', response.data.token);
-                localStorage.setItem('user', JSON.stringify(response.data.user));
-                navigate('/');
-            } else {
-                setError(response.data.message || 'Login failed');
-            }
-        } catch (err) {
-            setError(err.response?.data?.message || 'Something went wrong');
-        } finally {
-            setLoading(false);
-        }
-    };
+      toast.success(res.data.message);
 
-    return (
-        <div className="min-h-screen bg-base-100">
-            <Navbar />
-            
-            <div className="flex items-center justify-center min-h-[calc(100vh-70px)] p-4">
-                <div className="card bg-base-200 shadow-xl w-full max-w-md">
-                    <div className="card-body">
-                        <h2 className="card-title text-2xl mb-6 justify-center">Login to ChatKaro</h2>
-                        
-                        {error && (
-                            <div className="alert alert-error">
-                                <span>{error}</span>
-                            </div>
-                        )}
-                        
-                        <form onSubmit={handleSubmit} className="space-y-4">
-                            <div className="form-control">
-                                <label className="label">
-                                    <span className="label-text">Email</span>
-                                </label>
-                                <input
-                                    type="email"
-                                    name="email"
-                                    value={formData.email}
-                                    onChange={handleChange}
-                                    required
-                                    className="input input-bordered"
-                                    placeholder="Enter your email"
-                                    disabled={loading}
-                                />
-                            </div>
-                            
-                            <div className="form-control">
-                                <label className="label">
-                                    <span className="label-text">Password</span>
-                                </label>
-                                <input
-                                    type="password"
-                                    name="password"
-                                    value={formData.password}
-                                    onChange={handleChange}
-                                    required
-                                    className="input input-bordered"
-                                    placeholder="Enter your password"
-                                    disabled={loading}
-                                />
-                            </div>
-                            
-                            <div className="form-control mt-6">
-                                <button 
-                                    type="submit" 
-                                    disabled={loading}
-                                    className={`btn btn-primary ${loading ? 'loading' : ''}`}
-                                >
-                                    {loading ? 'Logging in...' : 'Login'}
-                                </button>
-                            </div>
-                        </form>
-                        
-                        <div className="divider">OR</div>
-                        
-                        <div className="text-center">
-                            <p className="mb-4">
-                                Don't have an account?{' '}
-                                <Link to="/register" className="link link-accent">
-                                    Register here
-                                </Link>
-                            </p>
-                        </div>
-                    </div>
-                </div>
+      // optional: store user or token
+      sessionStorage.setItem("AppUser", JSON.stringify(res.data.data));
+
+      handleClearForm();
+
+      // simple redirect
+      navigate("/dashboard");
+    } catch (error) {
+      console.log(error);
+      toast.error(error?.response?.data?.message || "Login failed");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const GoogleLogin = () => {
+    signInWithGoogle(handleGoogleSuccess, handleGoogleFailure);
+  };
+
+  const handleGoogleFailure = (error) => {
+    console.error("Google login failed:", error);
+    toast.error("Google login failed. Please try again.");
+  };
+
+  const [formData, setFormData] = useState({
+    email: "",
+    password: "",
+  });
+
+  const [Loading, setLoading] = useState(false);
+
+  const handleChange = (e) => {
+    const { name, value } = e.target;
+    setFormData((prev) => ({ ...prev, [name]: value }));
+  };
+
+  const handleClearForm = () => {
+    setFormData({ email: "", password: "" });
+  };
+
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    setLoading(true);
+
+    try {
+      const res = await api.post("/auth/login", formData);
+
+      toast.success(res.data.message);
+
+      // optional: store user or token
+      sessionStorage.setItem("AppUser", JSON.stringify(res.data.data));
+
+      handleClearForm();
+
+      // simple redirect
+      navigate("/dashboard");
+    } catch (error) {
+      console.log(error);
+      toast.error(error?.response?.data?.message || "Login failed");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <div className="min-h-screen flex items-center justify-center bg-base-200 px-4">
+      <div className="w-full max-w-md">
+        <div className="card bg-base-100 shadow-xl">
+          <div className="card-body">
+            {/* Header */}
+            <h2 className="card-title text-3xl justify-center text-primary">
+              Login
+            </h2>
+            <p className="text-center text-base-content/70 mb-6">
+              Welcome back 👋
+            </p>
+
+            {/* Form */}
+            <form
+              onSubmit={handleSubmit}
+              onReset={handleClearForm}
+              className="space-y-4"
+            >
+              <input
+                type="email"
+                name="email"
+                placeholder="Email address"
+                value={formData.email}
+                onChange={handleChange}
+                disabled={Loading}
+                required
+                className="input input-bordered w-full"
+              />
+
+              <input
+                type="password"
+                name="password"
+                placeholder="Password"
+                value={formData.password}
+                onChange={handleChange}
+                disabled={Loading}
+                required
+                className="input input-bordered w-full"
+              />
+
+              <div className="flex gap-3 pt-4">
+                <button
+                  type="reset"
+                  disabled={Loading}
+                  className="btn btn-secondary btn-outline flex-1"
+                >
+                  Clear
+                </button>
+
+                <button
+                  type="submit"
+                  disabled={Loading}
+                  className="btn btn-primary flex-1"
+                >
+                  {Loading ? "Logging in..." : "Login"}
+                </button>
+              </div>
+            </form>
+
+            {/* Google Login button */}
+
+            <div className="mt-4">
+              {error ? (
+                <button
+                  className="btn btn-outline btn-error font-sans flex items-center justify-center gap-2 w-full"
+                  disabled
+                >
+                  <FcGoogle className="text-xl" />
+                  {error}
+                </button>
+              ) : (
+                <button
+                  onClick={GoogleLogin}
+                  className="btn btn-outline font-sans flex items-center justify-center gap-2 w-full"
+                  disabled={!isInitialized || isLoading}
+                >
+                  <FcGoogle className="text-xl" />
+                  {isLoading
+                    ? "Loading..."
+                    : isInitialized
+                      ? "Continue with Google"
+                      : "Google Auth Error"}
+                </button>
+              )}
             </div>
+          </div>
         </div>
-    );
+
+        <p className="text-center text-sm text-base-content/60 mt-6">
+          Your data is safe with us 🔐
+        </p>
+      </div>
+    </div>
+  );
 };
 
 export default Login;
