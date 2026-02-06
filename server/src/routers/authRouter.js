@@ -7,6 +7,7 @@ import {
 import { GoogleProtect } from "../middleware/googleMiddleware.js";
 
 const router = express.Router();
+
 router.post("/register", UserRegister);
 router.post("/login", UserLogin);
 router.post("/googleLogin", GoogleProtect, GoogleUserLogin);
