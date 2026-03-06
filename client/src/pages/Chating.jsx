@@ -8,6 +8,7 @@ const Chating = () => {
 
   const [receiver, setReceiver] = useState(null);
 
+  
   return (
     <>
       <div className="flex h-[92vh]">
