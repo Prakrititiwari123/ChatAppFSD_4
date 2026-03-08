@@ -10,13 +10,16 @@ export const Protect = async (req, res, next) => {
       return next(error);
     }
     const decoded = jwt.verify(token, process.env.JWT_SECRET);
-
+    
     const verifiedUser = await User.findById(decoded._id);
     if (!verifiedUser) {
       const error = new Error("Unauthorized");
       error.statusCode = 401;
       return next(error);
     }
+
+  //  console.log(verifiedUser);
+  
 
     req.user = verifiedUser;
     next();

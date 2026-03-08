@@ -1,3 +1,4 @@
+import { generateToken } from "../config/authToken.js";
 import User from "../models/userModel.js";
 import bcrypt from "bcrypt";
 
@@ -74,6 +75,9 @@ export const UserLogin = async (req, res, next) => {
       return next(error);
     }
 
+    // Generate token and set cookie
+    generateToken(existingUser._id, res);
+    
     res.status(200).json({
       message: "Login successful",
       data: existingUser,
@@ -91,7 +95,6 @@ export const GoogleUserLogin = async (req, res, next) => {
       //use Defualt Photo Code here
       //using placehold.co
     }
-
     let existingUser = await User.findOne({ email });
     const salt = await bcrypt.genSalt(10);
 
@@ -109,14 +112,10 @@ export const GoogleUserLogin = async (req, res, next) => {
           error.statusCode = 400;
           return next(error);
         }
-        
       }
     } else {
       console.log("orange");
       const hashGoogleID = await bcrypt.hash(id, salt);
-
-      console.log(hashGoogleID);
-      
 
       const newUser = await User.create({
         fullName: name,
@@ -128,6 +127,8 @@ export const GoogleUserLogin = async (req, res, next) => {
     }
 
     //genrate login token if requred
+
+    generateToken(existingUser._id, res);
     res.status(200).json({
       message: "Login successful",
       data: existingUser,
